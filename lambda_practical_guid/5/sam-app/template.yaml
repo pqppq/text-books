@@ -1,0 +1,68 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  sam-app
+
+  Sample SAM Template for sam-app
+
+# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+Globals:
+  Function:
+    Timeout: 3
+    Environment:
+      Variables:
+        OUTPUTBUCKET: examplewrite00001234
+
+Resources:
+  HelloWorldFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: hello_world/
+      Handler: app.lambda_handler
+      Runtime: python3.9
+      Architectures:
+        - x86_64
+      Role: arn:aws:iam::935838525253:role/example-lambda-role
+          # Events:
+          #   HelloWorld:
+          #     Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          #     Properties:
+          #       Path: /hello
+          #       Method: get
+      Layers:
+        - !Ref MyLayerPyminizip
+
+    S3Permission:
+      Type: AWS::Lambda::Permission
+      Properties:
+        Action: 'lambda:InvokeFunction'
+        FunctionName: !Ref HelloWorldFunction
+        Principal: s3.amazonaws.com
+        SourceAccount: !Ref 'AWS::AccoundId'
+        SourceArn: !Sub arn:aws:s3:::example-bucket
+
+    MyLayerPyminizip:
+      Type: AWS::Serverless::LayerVersion
+      Properties:
+        ContentUri: 'layer-pyminizip'
+        CompatibleRuntimes:
+          - python3.9
+      Metadata:
+        BuildMethod: python3.9
+
+
+Outputs:
+  MyFunctionArn:
+    Value: !GetAtt HelloWorldFunction.Arn
+              #   # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
+              #   # Find out more about other implicit resources you can reference within SAM
+              #   # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#api
+              #   HelloWorldApi:
+              #     Description: "API Gateway endpoint URL for Prod stage for Hello World function"
+              #     Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/hello/"
+              #   HelloWorldFunction:
+              #     Description: "Hello World Lambda Function ARN"
+              #     Value: !GetAtt HelloWorldFunction.Arn
+              #   HelloWorldFunctionIamRole:
+              #     Description: "Implicit IAM Role created for Hello World function"
+              #     Value: !GetAtt HelloWorldFunctionRole.Arn
