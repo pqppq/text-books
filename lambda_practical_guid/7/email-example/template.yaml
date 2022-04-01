@@ -1,0 +1,134 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  email-example
+
+Parameters:
+  MailAddress:
+    Type: String
+  MailTableName:
+    Type: String
+    Default: 'mailaddress2'
+  BucketName:
+    Type: String
+    Default: 'mailbody'
+
+Globals:
+  Function:
+    Tracing: Active
+    Timeout: 3
+    Environment:
+      Variables:
+        MAILADDRESS: !Ref mailAddress
+        MAILTABLE: !Ref MailTable
+        QUEUENAME: !GetAtt SendQueue.QueueName
+
+Resources:
+  S3Mailbody:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    Properties:
+      BucketName: !Ref BucketName
+
+  MailTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    Properties:
+      TableName: !Ref MailTableName
+      AttributeDefinitions:
+        - Attributename: email
+          AttributeType: S
+        - AttributeName: haserror
+          AttributeType: N
+      KeySchema:
+        - AttributeName: email
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 3
+        WriteCapacityUnits: 3
+    GlobalSecondaryIndexes:
+      - IndexName: has-error
+        KeySchema:
+          - AttributeName: haserror
+            KeyType: HASH
+        Projection:
+          ProjectionType: ALL
+        ProvisionedThroughput:
+          ReadCapacityUnits: 3
+          WriteCapacityUnits: 3
+
+  SendQueue:
+    Type: AWS::SQS::Queue
+
+  BounceTopic:
+    Type: AWS::SNS:Topic
+
+  SendQueueFunction:
+    Type: AWS::Serverless::Function
+    DeletionPolicy: Retain
+    Properties:
+      CodeUri: send_queue/
+      Handler: app.lambda_handler
+      Runtime: python3.9
+      Policies:
+        - CloudWatchFullAccess
+        - AWSXRayDaemonWriteAccess
+        - DynamoDBCrudPolicy:
+          TableName: !Ref MailTable
+        - SQSSendMessagePolicy:
+          QueueName: !GetAtt SendQueue.QueueName
+      Events:
+        BodyUploadEvent:
+          Type: S3Mailbody
+          Properties:
+            Bucket: !Ref S3Mailbody
+            Events: s3:ObjectCreated:*
+
+  SendmailFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: send_mail/
+      Handler: app.lambda_handler
+      Runtime: python3.9
+      Policies:
+        - CloudWatchFullAccess
+        - AWSXRayDaemonWriteAccess
+        - DynamoDBCrudPolicy:
+          TableName: !Ref MailTable
+        - S3ReadPolicy:
+          BucketName: !Ref S3Mailbody
+        - SESCrudPolicy:
+          IdentityName: !Ref MailAddress
+      Events:
+        SendMailEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt SendQueue.Arn
+            BatchSize: 10
+
+  BounceFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: bounce/
+      Handler: app.lambda_handler
+      Runtime: python3.9
+      Policies:
+        - CloudWatchFullAccess
+        - AWSXRayDaemonWriteAccess
+        - DynamoDBCrudPolicy:
+          TableName: !Ref MailTable
+      Events:
+        BounceEvent:
+          Type: SNS
+          Properties:
+            Topic: !Ref BounceTopic
+
+Outputs:
+  S3MailBodyArn:
+    Value: !GetAtt S3Mailbody.Arn
+  SendQueueArn:
+    Value: !GetAtt SendQueue.Arn
+  BounceTopicArn:
+    Value: !GetAtt BounceTopic.Arn
+  TableName:
+    Value: !Ref MailTable
