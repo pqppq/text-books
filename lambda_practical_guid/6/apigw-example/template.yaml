@@ -1,0 +1,114 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Web Form Example
+
+Parameters:
+  BucketName:
+    Type: String
+    Default: 'example0123456789'
+
+Globals:
+  Function:
+    Timeout: 3
+    Environment:
+      Variables:
+        MAILFROM: example@example.co.jp
+        SEQUENCETABLE: !Ref SequenceTable
+        USERTABLE: !Ref UserTable
+        SAVEBUCKET: contents0123456789
+
+Resources:
+  UserRegistFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: hello_world
+      Handler: app.lambda_handler
+      Runtime: python3.9
+      Architectures:
+        - x86_64
+      Role: arn:aws:iam::XXXXXXXXXX:role/example-lambda-role
+      Events:
+        HelloWorld:
+          Type: HttpApi
+          Properties:
+            Path: /userregist
+            Method: post
+            ApiId: !Ref MyHttpApi
+
+  MyHttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      CorsConfiguration: true
+      Domain:
+        DomainName: api2.aws-example.net
+        CertificateArn: arn:aws:acm:ap-north-east-1:XXXXXXXXXX:certificatie/xxxxxxxxxxxxxx
+        EndpointConfiguration: REGIONAL
+        Route53:
+          HostedZoneId: XXXXXXXXXX
+
+  S3FormBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+
+    Properties:
+      BucketName: !Ref BucketName
+
+      AccessControl: PublicRead
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: error.html
+
+  BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      PolicyDocument:
+        Id: MyPolicy
+        Version: 2012-10-17
+        Statement:
+          - Sid: PublicReadForGetBucketsObjects
+            Effect: Allow
+            Principal: '*'
+            Action: 's3::GetObject'
+            Resource: !Join
+              - ''
+              - - 'arn:aws:s3:::'
+                - !Ref S3FormBucket
+                - /*
+      Bucket: !Ref S3FormBucket
+
+  UserTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    Properties:
+      TableName: user2
+      AttributeDefinitions:
+        - AttributeName: id
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 3
+        WriteCapacityUnits: 3
+
+  SequenceTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    Properties:
+      TableName: sequence2
+      AttributeDefinitions:
+        - AttributeName: tablename
+          AttributeType: S
+      KeySchema:
+        - AttributeName: tablename
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 3
+        WriteCapacityUnits: 3
+
+Outputs:
+  MyFunctionArn:
+    Value: !GetAtt UserRegistFunction.Arn
+  MyFormBucketName:
+    Value: !Ref S3FormBucket
+  WebSiteURL:
+    Value: !GetAtt S3FormBucket.Arn
+  MySequenceTableName:
+    Value: !Ref SequenceTable
