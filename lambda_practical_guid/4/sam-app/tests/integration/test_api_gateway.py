@@ -14,14 +14,13 @@ class TestApiGateway(TestCase):
 
     @classmethod
     def get_stack_name(cls) -> str:
-        stack_name = os.environ.get("AWS_SAM_STACK_NAME")
-        if not stack_name:
+        if stack_name := os.environ.get("AWS_SAM_STACK_NAME"):
+            return stack_name
+        else:
             raise Exception(
                 "Cannot find env var AWS_SAM_STACK_NAME. \n"
                 "Please setup this environment variable with the stack name where we are running integration tests."
             )
-
-        return stack_name
 
     def setUp(self) -> None:
         """
