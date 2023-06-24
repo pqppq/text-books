@@ -24,7 +24,7 @@ def lambda_handler(event, context):
         pyminizip.compress(localfilename, None, zipfilename, 'mypassword', 0)
 
         destbucketname = os.environ["OUTPUTBUCKET"]
-        obj2 = s3.Object(destbucketname, filename + '.zip')
+        obj2 = s3.Object(destbucketname, f'{filename}.zip')
 
         response = obj2.put(Body=open(zipfilename, "rd"))
         tmpdir.cleanup()
